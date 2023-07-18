@@ -61,7 +61,6 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/internal/flags"
 	"github.com/ethereum/go-ethereum/les"
-	lescatalyst "github.com/ethereum/go-ethereum/les/catalyst"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/metrics/exp"
@@ -160,7 +159,7 @@ var (
 		Usage:    "Ephemeral proof-of-authority network with a pre-funded developer account, mining enabled",
 		Category: flags.DevCategory,
 	}
-	DeveloperPeriodFlag = &cli.IntFlag{
+	DeveloperPeriodFlag = &cli.Uint64Flag{
 		Name:     "dev.period",
 		Usage:    "Block period to use in developer mode (0 = mine only if transaction pending)",
 		Category: flags.DevCategory,
@@ -253,11 +252,6 @@ var (
 		Usage:    "Comma separated block number-to-hash mappings to require for peering (<number>=<hash>)",
 		Category: flags.EthCategory,
 	}
-	LegacyWhitelistFlag = &cli.StringFlag{
-		Name:     "whitelist",
-		Usage:    "Comma separated block number-to-hash mappings to enforce (<number>=<hash>) (deprecated in favor of --eth.requiredblocks)",
-		Category: flags.DeprecatedCategory,
-	}
 	BloomFilterSizeFlag = &cli.Uint64Flag{
 		Name:     "bloomfilter.size",
 		Usage:    "Megabytes of memory allocated to bloom-filter for pruning",
@@ -297,23 +291,6 @@ var (
 		Name:     "light.maxpeers",
 		Usage:    "Maximum number of light clients to serve, or light servers to attach to",
 		Value:    ethconfig.Defaults.LightPeers,
-		Category: flags.LightCategory,
-	}
-	UltraLightServersFlag = &cli.StringFlag{
-		Name:     "ulc.servers",
-		Usage:    "List of trusted ultra-light servers",
-		Value:    strings.Join(ethconfig.Defaults.UltraLightServers, ","),
-		Category: flags.LightCategory,
-	}
-	UltraLightFractionFlag = &cli.IntFlag{
-		Name:     "ulc.fraction",
-		Usage:    "Minimum % of trusted ultra-light servers required to announce a new head",
-		Value:    ethconfig.Defaults.UltraLightFraction,
-		Category: flags.LightCategory,
-	}
-	UltraLightOnlyAnnounceFlag = &cli.BoolFlag{
-		Name:     "ulc.onlyannounce",
-		Usage:    "Ultra light server sends announcements only",
 		Category: flags.LightCategory,
 	}
 	LightNoPruneFlag = &cli.BoolFlag{
@@ -770,8 +747,16 @@ var (
 		Usage:    "Disables the peer discovery mechanism (manual peer addition)",
 		Category: flags.NetworkingCategory,
 	}
+	DiscoveryV4Flag = &cli.BoolFlag{
+		Name:     "discovery.v4",
+		Aliases:  []string{"discv4"},
+		Usage:    "Enables the V4 discovery mechanism",
+		Category: flags.NetworkingCategory,
+		Value:    true,
+	}
 	DiscoveryV5Flag = &cli.BoolFlag{
-		Name:     "v5disc",
+		Name:     "discovery.v5",
+		Aliases:  []string{"discv5"},
 		Usage:    "Enables the experimental RLPx V5 (Topic Discovery) mechanism",
 		Category: flags.NetworkingCategory,
 	}
@@ -1208,19 +1193,6 @@ func setLes(ctx *cli.Context, cfg *ethconfig.Config) {
 	if ctx.IsSet(LightMaxPeersFlag.Name) {
 		cfg.LightPeers = ctx.Int(LightMaxPeersFlag.Name)
 	}
-	if ctx.IsSet(UltraLightServersFlag.Name) {
-		cfg.UltraLightServers = strings.Split(ctx.String(UltraLightServersFlag.Name), ",")
-	}
-	if ctx.IsSet(UltraLightFractionFlag.Name) {
-		cfg.UltraLightFraction = ctx.Int(UltraLightFractionFlag.Name)
-	}
-	if cfg.UltraLightFraction <= 0 && cfg.UltraLightFraction > 100 {
-		log.Error("Ultra light fraction is invalid", "had", cfg.UltraLightFraction, "updated", ethconfig.Defaults.UltraLightFraction)
-		cfg.UltraLightFraction = ethconfig.Defaults.UltraLightFraction
-	}
-	if ctx.IsSet(UltraLightOnlyAnnounceFlag.Name) {
-		cfg.UltraLightOnlyAnnounce = ctx.Bool(UltraLightOnlyAnnounceFlag.Name)
-	}
 	if ctx.IsSet(LightNoPruneFlag.Name) {
 		cfg.LightNoPrune = ctx.Bool(LightNoPruneFlag.Name)
 	}
@@ -1361,13 +1333,17 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 		cfg.NoDiscovery = true
 	}
 
-	// if we're running a light client or server, force enable the v5 peer discovery
-	// unless it is explicitly disabled with --nodiscover note that explicitly specifying
-	// --v5disc overrides --nodiscover, in which case the later only disables v4 discovery
-	forceV5Discovery := (lightClient || lightServer) && !ctx.Bool(NoDiscoverFlag.Name)
-	if ctx.IsSet(DiscoveryV5Flag.Name) {
-		cfg.DiscoveryV5 = ctx.Bool(DiscoveryV5Flag.Name)
-	} else if forceV5Discovery {
+	// Disallow --nodiscover when used in conjunction with light mode.
+	if (lightClient || lightServer) && ctx.Bool(NoDiscoverFlag.Name) {
+		Fatalf("Cannot use --" + NoDiscoverFlag.Name + " in light client or light server mode")
+	}
+	CheckExclusive(ctx, DiscoveryV4Flag, NoDiscoverFlag)
+	CheckExclusive(ctx, DiscoveryV5Flag, NoDiscoverFlag)
+	cfg.DiscoveryV4 = ctx.Bool(DiscoveryV4Flag.Name)
+	cfg.DiscoveryV5 = ctx.Bool(DiscoveryV5Flag.Name)
+
+	// If we're running a light client or server, force enable the v5 peer discovery.
+	if lightClient || lightServer {
 		cfg.DiscoveryV5 = true
 	}
 
@@ -1817,7 +1793,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		log.Info("Using developer account", "address", developer.Address)
 
 		// Create a new developer genesis block or reuse existing one
-		cfg.Genesis = core.DeveloperGenesisBlock(uint64(ctx.Int(DeveloperPeriodFlag.Name)), ctx.Uint64(DeveloperGasLimitFlag.Name), developer.Address)
+		cfg.Genesis = core.DeveloperGenesisBlock(ctx.Uint64(DeveloperGasLimitFlag.Name), developer.Address)
 		if ctx.IsSet(DataDirFlag.Name) {
 			// If datadir doesn't exist we need to open db in write-mode
 			// so leveldb can create files.
@@ -1877,9 +1853,6 @@ func RegisterEthService(stack *node.Node, cfg *ethconfig.Config) (ethapi.Backend
 			Fatalf("Failed to register the Ethereum service: %v", err)
 		}
 		stack.RegisterAPIs(tracers.APIs(backend.ApiBackend))
-		if err := lescatalyst.Register(stack, backend); err != nil {
-			Fatalf("Failed to register the Engine API service: %v", err)
-		}
 		return backend.ApiBackend, nil
 	}
 	backend, err := eth.New(stack, cfg)
@@ -1891,9 +1864,6 @@ func RegisterEthService(stack *node.Node, cfg *ethconfig.Config) (ethapi.Backend
 		if err != nil {
 			Fatalf("Failed to create the LES server: %v", err)
 		}
-	}
-	if err := ethcatalyst.Register(stack, backend); err != nil {
-		Fatalf("Failed to register the Engine API service: %v", err)
 	}
 	stack.RegisterAPIs(tracers.APIs(backend.APIBackend))
 	return backend.APIBackend, backend
