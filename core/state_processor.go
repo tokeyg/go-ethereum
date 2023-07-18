@@ -159,10 +159,10 @@ func applyTransactionWithResult(msg *Message, config *params.ChainConfig, bc Cha
 
 	// Update the state with pending changes.
 	var root []byte
-	if config.IsByzantium(header.Number) {
+	if config.IsByzantium(blockNumber) {
 		statedb.Finalise(true)
 	} else {
-		root = statedb.IntermediateRoot(config.IsEIP158(header.Number)).Bytes()
+		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
 	}
 	*usedGas += result.UsedGas
 
