@@ -2195,7 +2195,7 @@ type CallBundleArgs struct {
 	GasLimit               *uint64               `json:"gasLimit"`
 	Difficulty             *big.Int              `json:"difficulty"`
 	BaseFee                *big.Int              `json:"baseFee"`
-	SimulationLogs		 bool		 `json:"simulationLogs"`
+	SimulationLogs         bool                  `json:"simulationLogs"`
 }
 
 // CallBundle will simulate a bundle of transactions at the top of a given block
@@ -2254,7 +2254,7 @@ func (s *BundleAPI) CallBundle(ctx context.Context, args CallBundleArgs) (map[st
 	if args.BaseFee != nil {
 		baseFee = args.BaseFee
 	} else if s.b.ChainConfig().IsLondon(big.NewInt(args.BlockNumber.Int64())) {
-		baseFee = misc.CalcBaseFee(s.b.ChainConfig(), parent)
+		baseFee = eip1559.CalcBaseFee(s.b.ChainConfig(), parent)
 	}
 	header := &types.Header{
 		ParentHash: parent.Hash(),
