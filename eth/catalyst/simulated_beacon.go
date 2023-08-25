@@ -92,7 +92,7 @@ func NewSimulatedBeacon(period uint64, eth *eth.Ethereum) (*SimulatedBeacon, err
 		SafeBlockHash:      block.Hash(),
 		FinalizedBlockHash: block.Hash(),
 	}
-	engineAPI := NewConsensusAPI(eth)
+	engineAPI := newConsensusAPIWithoutHeartbeat(eth)
 
 	// if genesis block, send forkchoiceUpdated to trigger transition to PoS
 	if block.Number.Sign() == 0 {
@@ -153,7 +153,7 @@ func (c *SimulatedBeacon) sealBlock(withdrawals []*types.Withdrawal) error {
 		return fmt.Errorf("error calling forkchoice update: %v", err)
 	}
 
-	envelope, err := c.engineAPI.getPayload(*fcResponse.PayloadID)
+	envelope, err := c.engineAPI.getPayload(*fcResponse.PayloadID, true)
 	if err != nil {
 		return fmt.Errorf("error retrieving payload: %v", err)
 	}
