@@ -1923,9 +1923,30 @@ func (s *TransactionAPI) SignTransaction(ctx context.Context, args TransactionAr
 	return &SignTransactionResult{data, signed}, nil
 }
 
+// PendingTransactionsFrom returns the transactions that are in the transaction pool
+// and have a from address
+
+func (s *TransactionAPI) PendingTransactionsFrom(addr common.Address) ([]*RPCTransaction, error) {
+	pending, err := s.b.GetPoolTransactions()
+	if err != nil {
+		return nil, err
+	}
+
+	curHeader := s.b.CurrentHeader()
+	transactions := make([]*RPCTransaction, 0, len(pending))
+	for _, tx := range pending {
+		from, _ := types.Sender(s.signer, tx)
+		if exists := from == addr; exists {
+			transactions = append(transactions, NewRPCPendingTransaction(tx, curHeader, s.b.ChainConfig()))
+		}
+	}
+	return transactions, nil
+}
+
 // PendingTransactions returns the transactions that are in the transaction pool
 // and have a from address that is one of the accounts this node manages.
 func (s *TransactionAPI) PendingTransactions() ([]*RPCTransaction, error) {
+
 	pending, err := s.b.GetPoolTransactions()
 	if err != nil {
 		return nil, err

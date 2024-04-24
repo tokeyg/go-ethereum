@@ -626,6 +626,20 @@ web3._extend({
 			name: 'getBlockReceipts',
 			call: 'eth_getBlockReceipts',
 			params: 1,
+		}),		
+		new web3._extend.Method({
+			name: 'pendingTransactionsFrom',
+			call: 'eth_pendingTransactionsFrom',
+			params: 1,
+			inputFormatter: [web3._extend.formatters.inputAddressFormatter]
+			outputFormatter: function(txs) {
+				var formatted = [];
+				for (var i = 0; i < txs.length; i++) {
+					formatted.push(web3._extend.formatters.outputTransactionFormatter(txs[i]));
+					formatted[i].blockHash = null;
+				}
+				return formatted;
+			}
 		}),
 	],
 	properties: [
