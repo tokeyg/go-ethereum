@@ -1925,7 +1925,6 @@ func (s *TransactionAPI) SignTransaction(ctx context.Context, args TransactionAr
 
 // PendingTransactionsFrom returns the transactions that are in the transaction pool
 // and have a from address
-
 func (s *TransactionAPI) PendingTransactionsFrom(addr common.Address) ([]*RPCTransaction, error) {
 	pending, err := s.b.GetPoolTransactions()
 	if err != nil {
