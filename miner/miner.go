@@ -59,7 +59,7 @@ var DefaultConfig = Config{
 	// consensus-layer usually will wait a half slot of time(6s)
 	// for payload generation. It should be enough for Geth to
 	// run 3 rounds.
-	Recommit: 250 * time.Millisecond,
+	Recommit: 500 * time.Millisecond,
 }
 
 // Miner is the main object which takes care of submitting new work to consensus

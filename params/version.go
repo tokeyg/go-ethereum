@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	VersionMajor = 1          // Major version component of the current release
-	VersionMinor = 14         // Minor version component of the current release
-	VersionPatch = 1          // Patch version component of the current release
-	VersionMeta  = "unstable" // Version metadata to append to the version string
+	VersionMajor = 1        // Major version component of the current release
+	VersionMinor = 14       // Minor version component of the current release
+	VersionPatch = 0        // Patch version component of the current release
+	VersionMeta  = "stable" // Version metadata to append to the version string
 )
 
 // Version holds the textual version string.
@@ -50,7 +50,7 @@ func ArchiveVersion(gitCommit string) string {
 		vsn += "-" + VersionMeta
 	}
 	if len(gitCommit) >= 8 {
-		vsn += "-" + "7371b381"
+		vsn += "-" + "87246f3c"
 	}
 	return vsn
 }
@@ -58,7 +58,7 @@ func ArchiveVersion(gitCommit string) string {
 func VersionWithCommit(gitCommit, gitDate string) string {
 	vsn := VersionWithMeta
 	if len(gitCommit) >= 8 {
-		vsn += "-" + "7371b381"
+		vsn += "-" + "87246f3c"
 	}
 	if (VersionMeta != "stable") && (gitDate != "") {
 		vsn += "-" + gitDate

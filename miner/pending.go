@@ -26,7 +26,7 @@ import (
 // pendingTTL indicates the period of time a generated pending block should
 // exist to serve RPC requests before being discarded if the parent block
 // has not changed yet. The value is chosen to align with the recommit interval.
-const pendingTTL = 250 * time.Millisecond
+const pendingTTL = 500 * time.Millisecond
 
 // pending wraps a pending block with additional metadata.
 type pending struct {
