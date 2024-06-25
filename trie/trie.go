@@ -53,7 +53,6 @@ type Trie struct {
 	reader *trieReader
 
 	// tracer is the tool to track the trie changes.
-	// It will be reset after each commit operation.
 	tracer *tracer
 }
 
@@ -609,7 +608,6 @@ func (t *Trie) Hash() common.Hash {
 // Once the trie is committed, it's not usable anymore. A new trie must
 // be created with new root and updated trie database for following usage
 func (t *Trie) Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet) {
-	defer t.tracer.reset()
 	defer func() {
 		t.committed = true
 	}()
@@ -661,6 +659,18 @@ func (t *Trie) hashRoot() (node, node) {
 	}()
 	hashed, cached := h.hash(t.root, true)
 	return hashed, cached
+}
+
+// Witness returns a set containing all trie nodes that have been accessed.
+func (t *Trie) Witness() map[string]struct{} {
+	if len(t.tracer.accessList) == 0 {
+		return nil
+	}
+	witness := make(map[string]struct{})
+	for _, node := range t.tracer.accessList {
+		witness[string(node)] = struct{}{}
+	}
+	return witness
 }
 
 // Reset drops the referenced root node and cleans all internal state.
